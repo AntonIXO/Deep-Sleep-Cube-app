@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+    <boolean name="flutter.appModeClearedFlag" value="true" />
+    <string name="flutter.locale">ru</string>
+    <string name="flutter.country">TD</string>
+    <string name="flutter.connected_device_id">34:5F:45:36:E3:8E</string>
+</map>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.DeepCube" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">#FF07070B</item>
+        <item name="android:navigationBarColor">#FF07070B</item>
+        <item name="android:windowBackground">#FF07070B</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

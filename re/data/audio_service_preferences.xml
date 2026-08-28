@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+    <boolean name="androidNotificationOngoing" value="false" />
+    <string name="androidNotificationIcon">mipmap/launcher_icon</string>
+    <boolean name="androidShowNotificationBadge" value="true" />
+    <string name="androidNotificationChannelDescription">Meditation audio</string>
+    <string name="androidNotificationChannelId">com.dnateam.deep_app.channel.meditation</string>
+    <string name="activityClassName">com.ryanheise.audioservice.AudioServiceActivity</string>
+    <boolean name="androidNotificationClickStartsActivity" value="true" />
+    <int name="artDownscaleWidth" value="-1" />
+    <boolean name="androidResumeOnClick" value="true" />
+    <string name="androidNotificationChannelName">Meditation audio</string>
+    <int name="notificationColor" value="-1" />
+    <boolean name="androidStopForegroundOnPause" value="true" />
+    <int name="artDownscaleHeight" value="-1" />
+</map>

@@ -40,11 +40,11 @@ enum class ProgramKind(
         "Засыпание, глубокий сон, плавный подъём",
         rOnly = false,
     ),
-    SleepingBear(
-        2,
-        "Сон медведя",
-        "Максимум глубокого сна, без утреннего подбуживания",
-        rOnly = true,
+    DeepSleep(
+        10,
+        "Глубокий сон",
+        "Сон медведя · максимум глубокого сна, тяжёлое пробуждение",
+        rOnly = false,
     ),
     DreamKit(
         3,
@@ -88,13 +88,10 @@ data class CubeStatus(
 
     companion object {
         /**
-         * Idle deep.n:  `00 00 7f 00 00 00 00 00 00 00 00 00`
-         * Running 9h:   `aa 01 7f 00 90 7e 00 00 c2 00 00 00`
-         *   b0 = 0xAA running / 0x00 idle
-         *   b1 = program number (1 = Just a sleep)
-         *   b2 = 0x7F while frequency is on the built-in curve
-         *   b4..b7 = total duration seconds LE (0x7e90 = 32400 = 9h)
-         *   b8..b11 = elapsed seconds LE
+         * Idle:     `00 00 7f 00 00 00 00 00 00 00 00 00`
+         * Running:  `aa [program] 7f 00 [total LE u32] [elapsed LE u32]`
+         *   program 1 = Просто сон, 10 = Глубокий сон on fw 1.8.9
+         *   b3 is 0 while running (not the start-frame power)
          */
         fun parse(raw: ByteArray): CubeStatus {
             val b = raw.copyOf(12)

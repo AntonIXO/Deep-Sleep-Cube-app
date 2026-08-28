@@ -240,7 +240,7 @@ private fun ConnectedPane(state: UiState, vm: DeepViewModel) {
             Text("ДЛИТЕЛЬНОСТЬ", color = MistDim, letterSpacing = 2.sp, fontSize = 11.sp)
             Spacer(Modifier.height(8.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items((4..12).toList()) { h ->
+                items((1..12).toList()) { h ->
                     val on = state.durationHours == h
                     Text(
                         "$h ч",
@@ -358,10 +358,13 @@ private fun StatusHero(state: UiState, onDoubleTap: () -> Unit) {
         )
         Spacer(Modifier.height(6.dp))
         val freq = status?.frequencyHz
+        val programTitle = ProgramKind.entries
+            .firstOrNull { it.number == status?.programNumber }
+            ?.title
         Text(
             when {
                 freq != null -> "$freq Гц"
-                running -> "сон"
+                running -> programTitle ?: "сон"
                 else -> "ожидание"
             },
             color = Color(0xFFF4F1EA),

@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.antonix.deep.ble.DeepBleClient
+import dev.antonix.deep.ble.Protocol
 import dev.antonix.deep.ble.Uuids
 import dev.antonix.deep.model.ConnectionPhase
 import dev.antonix.deep.model.CubeInfo
@@ -109,7 +110,7 @@ class DeepViewModel(app: Application) : AndroidViewModel(app), DeepBleClient.Lis
     }
 
     fun setDurationHours(h: Int) {
-        _state.update { it.copy(durationHours = h.coerceIn(4, 12)) }
+        _state.update { it.copy(durationHours = h.coerceIn(1, 12)) }
     }
 
     fun togglePlay() {
@@ -127,10 +128,12 @@ class DeepViewModel(app: Application) : AndroidViewModel(app), DeepBleClient.Lis
             ble.lastStartFrame?.let { prefs.edit().putString("start_frame", it).apply() }
             ble.lastStopFrame?.let { prefs.edit().putString("stop_frame", it).apply() }
             ble.readStatus()
+            val fail = Protocol.reactionMessage(ble.lastCommandReaction)
+                ?: "Команда не принята. Открой лог."
             _state.update {
                 it.copy(
                     busy = false,
-                    message = if (ok) "" else "Команда не принята. Открой лог.",
+                    message = if (ok) "" else fail,
                     showLog = it.showLog || !ok,
                 )
             }

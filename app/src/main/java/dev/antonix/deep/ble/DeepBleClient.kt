@@ -59,6 +59,7 @@ class DeepBleClient(context: Context) {
 
     @Volatile var lastStartFrame: String? = null
     @Volatile var lastStopFrame: String? = null
+    @Volatile var lastCommandReaction: ByteArray? = null
     @Volatile private var lastDataReaction: ByteArray? = null
 
     fun isBluetoothOn(): Boolean = adapter?.isEnabled == true
@@ -178,8 +179,15 @@ class DeepBleClient(context: Context) {
             return true
         }
         val frame = Protocol.startCommand(kind.number, durationSec, power.wire)
-        if (tryCmd(frame, true, before)) {
+        lastCommandReaction = null
+        writeCommand(frame)
+        delayOnGatt(500)
+        val rx = lastCommandReaction
+        Protocol.reactionMessage(rx)?.let { log(it) }
+        val after = readStatus() ?: return false
+        if (after.running && after.programNumber == kind.number) {
             lastStartFrame = "cmd ${frame.toHex()}"
+            log("ок cmd ${frame.toHex()} → ${after.raw.toHex()}")
             return true
         }
         log("Не запустилось")
@@ -194,55 +202,17 @@ class DeepBleClient(context: Context) {
             return true
         }
         val frame = Protocol.stopCommand()
-        if (tryCmd(frame, false, before)) {
+        lastCommandReaction = null
+        writeCommand(frame)
+        delayOnGatt(400)
+        val after = readStatus() ?: return false
+        if (!after.running) {
             lastStopFrame = "cmd ${frame.toHex()}"
+            log("ок cmd ${frame.toHex()} → ${after.raw.toHex()}")
             return true
         }
         log("Не остановилось")
         return false
-    }
-
-    private suspend fun tryCmd(frame: ByteArray, wantRunning: Boolean, before: CubeStatus): Boolean {
-        writeCommand(frame)
-        delayOnGatt(400)
-        val after = readStatus() ?: return false
-        val changed = after.running == wantRunning && before.running != wantRunning
-        if (changed) {
-            log("ок cmd ${frame.toHex()} → ${after.raw.toHex()}")
-            return true
-        }
-        return false
-    }
-
-    private suspend fun tryDat(frame: ByteArray, wantRunning: Boolean, before: CubeStatus): Boolean {
-        lastDataReaction = null
-        writeData(frame)
-        delayOnGatt(400)
-        val nack = lastDataReaction?.getOrNull(1)?.toInt()?.and(0xFF) == 1
-        val after = readStatus() ?: return false
-        if (nack) return false
-        val changed = after.running == wantRunning && before.running != wantRunning
-        if (changed) {
-            log("ок dat ${frame.toHex()} → ${after.raw.toHex()}")
-            return true
-        }
-        return false
-    }
-
-    private suspend fun tryTagged(tag: String?, wantRunning: Boolean, before: CubeStatus): Boolean {
-        if (tag.isNullOrBlank()) return false
-        val bytes = parseHexFrame(tag) ?: return false
-        return if (tag.startsWith("dat")) tryDat(bytes, wantRunning, before)
-        else tryCmd(bytes, wantRunning, before)
-    }
-
-    private fun parseHexFrame(tag: String): ByteArray? {
-        val hex = tag.removePrefix("cmd ").removePrefix("dat ").trim()
-        return try {
-            hex.split(" ").filter { it.isNotBlank() }.map { it.toInt(16).toByte() }.toByteArray()
-        } catch (_: Throwable) {
-            null
-        }
     }
 
     suspend fun dumpRegisters() {
@@ -343,6 +313,7 @@ class DeepBleClient(context: Context) {
             value: ByteArray,
         ) {
             if (characteristic.uuid == Uuids.dataChar) lastDataReaction = value
+            if (characteristic.uuid == Uuids.commandChar) lastCommandReaction = value
             listener?.onReaction(characteristic.uuid, value)
             if (characteristic.uuid == Uuids.statusChar) {
                 listener?.onStatus(CubeStatus.parse(value))

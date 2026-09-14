@@ -13,6 +13,8 @@ import dev.antonix.deep.model.CubeInfo
 import dev.antonix.deep.model.CubeStatus
 import dev.antonix.deep.model.PowerLevel
 import dev.antonix.deep.model.ProgramKind
+import java.time.Duration
+import java.time.ZonedDateTime
 import java.util.UUID
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -28,6 +30,9 @@ data class UiState(
     val status: CubeStatus? = null,
     val selected: ProgramKind = ProgramKind.JustSleep,
     val durationHours: Int = 9,
+    val timingMode: TimingMode = TimingMode.Duration,
+    val wakeHour: Int = 7,
+    val wakeMinute: Int = 0,
     val power: PowerLevel = PowerLevel.Max,
     val led: Boolean = true,
     val vibro: Boolean = true,
@@ -38,12 +43,39 @@ data class UiState(
     val message: String = "",
 )
 
+enum class TimingMode {
+    Duration,
+    WakeTime,
+}
+
+internal fun durationUntilWakeTime(
+    now: ZonedDateTime,
+    wakeHour: Int,
+    wakeMinute: Int,
+): Int {
+    var wakeAt = now
+        .withHour(wakeHour.coerceIn(0, 23))
+        .withMinute(wakeMinute.coerceIn(0, 59))
+        .withSecond(0)
+        .withNano(0)
+    if (!wakeAt.isAfter(now)) wakeAt = wakeAt.plusDays(1)
+    return Duration.between(now, wakeAt).seconds.toInt()
+}
+
 class DeepViewModel(app: Application) : AndroidViewModel(app), DeepBleClient.Listener {
     private val prefs: SharedPreferences =
         app.getSharedPreferences("deep", 0)
     private val ble = DeepBleClient(app).also { it.listener = this }
 
-    private val _state = MutableStateFlow(UiState())
+    private val _state = MutableStateFlow(
+        UiState(
+            timingMode = prefs.getString(PREF_TIMING_MODE, null)
+                ?.let { stored -> TimingMode.entries.firstOrNull { it.name == stored } }
+                ?: TimingMode.Duration,
+            wakeHour = prefs.getInt(PREF_WAKE_HOUR, 7).coerceIn(0, 23),
+            wakeMinute = prefs.getInt(PREF_WAKE_MINUTE, 0).coerceIn(0, 59),
+        ),
+    )
     val state: StateFlow<UiState> = _state
 
     private var poll: Job? = null
@@ -113,17 +145,65 @@ class DeepViewModel(app: Application) : AndroidViewModel(app), DeepBleClient.Lis
         _state.update { it.copy(durationHours = h.coerceIn(1, 12)) }
     }
 
+    fun setTimingMode(mode: TimingMode) {
+        prefs.edit().putString(PREF_TIMING_MODE, mode.name).apply()
+        _state.update { it.copy(timingMode = mode, message = "") }
+    }
+
+    fun setWakeTime(hour: Int, minute: Int) {
+        val safeHour = hour.coerceIn(0, 23)
+        val safeMinute = minute.coerceIn(0, 59)
+        prefs.edit()
+            .putString(PREF_TIMING_MODE, TimingMode.WakeTime.name)
+            .putInt(PREF_WAKE_HOUR, safeHour)
+            .putInt(PREF_WAKE_MINUTE, safeMinute)
+            .apply()
+        _state.update {
+            it.copy(
+                timingMode = TimingMode.WakeTime,
+                wakeHour = safeHour,
+                wakeMinute = safeMinute,
+                message = "",
+            )
+        }
+    }
+
     fun togglePlay() {
         val s = _state.value
         if (s.busy || s.phase != ConnectionPhase.Connected || s.status == null) return
         val running = s.status.running == true
+        val durationSec = if (running) {
+            null
+        } else {
+            when (s.timingMode) {
+                TimingMode.Duration -> s.durationHours * 3600
+                TimingMode.WakeTime -> durationUntilWakeTime(
+                    ZonedDateTime.now(),
+                    s.wakeHour,
+                    s.wakeMinute,
+                )
+            }
+        }
+        if (
+            !running &&
+            (durationSec == null || durationSec !in Protocol.MIN_DURATION_SEC..Protocol.MAX_DURATION_SEC)
+        ) {
+            _state.update {
+                it.copy(message = "До подъёма должно оставаться не меньше часа.")
+            }
+            return
+        }
         viewModelScope.launch {
             _state.update { it.copy(busy = true, message = if (running) "Останавливаю…" else "Запускаю…") }
             val ok = if (running) {
                 ble.stopProgram(prefs.getString("stop_frame", null))
             } else {
-                val sec = s.durationHours * 3600
-                ble.startProgram(s.selected, sec, s.power, prefs.getString("start_frame", null))
+                ble.startProgram(
+                    s.selected,
+                    checkNotNull(durationSec),
+                    s.power,
+                    prefs.getString("start_frame", null),
+                )
             }
             ble.lastStartFrame?.let { prefs.edit().putString("start_frame", it).apply() }
             ble.lastStopFrame?.let { prefs.edit().putString("stop_frame", it).apply() }
@@ -274,5 +354,8 @@ class DeepViewModel(app: Application) : AndroidViewModel(app), DeepBleClient.Lis
 
     companion object {
         const val DEFAULT_ADDR = "34:5F:45:36:E3:8E"
+        private const val PREF_TIMING_MODE = "timing_mode"
+        private const val PREF_WAKE_HOUR = "wake_hour"
+        private const val PREF_WAKE_MINUTE = "wake_minute"
     }
 }

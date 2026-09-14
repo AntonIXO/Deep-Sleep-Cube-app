@@ -8,6 +8,7 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
+import android.bluetooth.BluetoothStatusCodes
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
@@ -425,7 +426,7 @@ class DeepBleClient(context: Context) {
             writeWait = result
             val type = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
             val ok = if (Build.VERSION.SDK_INT >= 33) {
-                g.writeCharacteristic(ch, bytes, type) == BluetoothGatt.GATT_SUCCESS
+                g.writeCharacteristic(ch, bytes, type) == BluetoothStatusCodes.SUCCESS
             } else {
                 ch.writeType = type
                 @Suppress("DEPRECATION")
